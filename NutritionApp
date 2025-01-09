@@ -1,0 +1,77 @@
+import os
+# تفعيل ANGLE
+os.environ['KIVY_GL_BACKEND'] = 'angle_sdl2'
+
+import requests
+import arabic_reshaper
+from bidi.algorithm import get_display
+from kivy.app import App
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.core.text import LabelBase
+
+# تسجيل خط يدعم العربية مثل "ARIAL"
+LabelBase.register(name='ARIAL', fn_regular='ARIAL.ttf')
+
+# بيانات API
+API_ID = " نكتب الرقم   "
+API_KEY = "نكتب الرقم  "
+
+class NutritionApp(App):
+    def build(self):
+        # تخطيط الواجهة
+        self.layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
+        # حقل إدخال الطعام
+        self.food_input = TextInput(hint_text=self.get_arabic_text('أدخل اسم الطعام'),
+                                    size_hint=(1, 0.2), multiline=False, font_name='ARIAL')
+        self.layout.add_widget(self.food_input)
+
+        # زر التحليل
+        self.analyze_button = Button(text=self.get_arabic_text('تحليل القيم الغذائية'),
+                                     size_hint=(1, 0.2), font_name='ARIAL')
+        self.analyze_button.bind(on_press=self.analyze_food)
+        self.layout.add_widget(self.analyze_button)
+
+        # مربع النص لعرض النتائج
+        self.result_label = Label(text='', size_hint=(1, 0.6), valign='top', halign='center', font_name='ARIAL')
+        self.result_label.bind(size=self.result_label.setter('text_size'))
+        self.layout.add_widget(self.result_label)
+
+        return self.layout
+
+    def analyze_food(self, instance):
+        # جلب الطعام المدخل
+        food_item = self.food_input.text.strip()
+        if not food_item:
+            self.result_label.text = self.get_arabic_text('يرجى إدخال اسم الطعام!')
+            return
+
+        # طلب تحليل القيم الغذائية
+        url = f"https://api.edamam.com/api/nutrition-data?app_id={API_ID}&app_key={API_KEY}&ingr={food_item}"
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            data = response.json()
+            print(data)  # طباعة الرد للتأكد من المحتوى
+            if "totalNutrients" in data and data["totalNutrients"]:
+                # تنسيق وعرض القيم الغذائية
+                result = "القيم الغذائية:\n"
+                for nutrient, details in data["totalNutrients"].items():
+                    label = self.get_arabic_text(details['label'])
+                    result += f"{label}: {details['quantity']:.2f} {details['unit']}\n"
+                self.result_label.text = self.get_arabic_text(result)
+            else:
+                self.result_label.text = self.get_arabic_text('لم يتم العثور على القيم الغذائية لهذا الطعام.')
+        else:
+            self.result_label.text = self.get_arabic_text(f"حدث خطأ: {response.status_code}")
+
+    def get_arabic_text(self, text):
+        """إعادة تشكيل النص العربي ليظهر بشكل صحيح"""
+        reshaped_text = arabic_reshaper.reshape(text)
+        return get_display(reshaped_text)
+
+if __name__ == '__main__':
+    NutritionApp().run()
